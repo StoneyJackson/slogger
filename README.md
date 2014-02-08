@@ -1,4 +1,6 @@
-# SLogger: Slogs so you don't have to
+# SLogger
+
+A PHP Logger
 
 ## Features
 
