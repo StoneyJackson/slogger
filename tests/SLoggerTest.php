@@ -8,16 +8,11 @@ ini_set('display_startup_errors' , 1);
 // Import the class we're testing.
 require '../src/SLogger.php';
 
-// Test SLogger.php
+/**
+ * Test SLogger.php
+ */
 class SLoggerTest extends PHPUnit_Framework_TestCase
 {
-
-    // public static function toString
-    public function test_toString()
-    {
-        $this->assertEquals("NULL", SLogger::toString(NULL));
-        $this->assertEquals('string(0) ""', SLogger::toString(""));
-    }
 
     public function test_functional() {
         date_default_timezone_set('UTC');
@@ -75,3 +70,5 @@ class A {
         SLogger::get('logTest')->debug('Log from static method.');
     }
 }
+
+class TestException extends Exception {}
