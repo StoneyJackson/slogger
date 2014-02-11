@@ -52,10 +52,10 @@ SLogger::add(array(
 ));
 
 // Install SLogger to log errors and uncaught exceptions.
-SLogger::installErrorHandlers(
+SLoggerErrorHandler::install(
     'paypal',         // logger to use
     E_ALL | E_NOTICE, // report all errors
-    0,                // 1 displays errors to browser, 0 does not.
+    0                 // 1 displays errors to browser, 0 does not.
 );
 
 // Get to work.

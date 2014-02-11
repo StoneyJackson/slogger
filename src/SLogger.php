@@ -1,33 +1,43 @@
 <?php
 /**
- * Logging system.
+ * Logging system. Contains common constants and static functons.
+ *
+ * Severity constants based on RFC 5424: http://tools.ietf.org/html/rfc5424 .
  */
 class SLogger
 {
-    // Hold named loggers.
-    private static $_instances = array();
+    /**
+     * Named SLoggerObjects.
+     */
+    private static $_sloggerObjects = array();
 
-    // Severity level to turn off logging. Prevents file rotation, deletion, and creation.
+    /**
+     * Severity level to turn off logging. Prevents file rotation, deletion,
+     * and creation.
+     */
     const OFF = -1;
 
-    // Severity levels as in RFC5424:
-    //    * http://tools.ietf.org/html/rfc5424
-    //    * http://en.wikipedia.org/wiki/Syslog
-    const EMERGENCY = 0;     // System wide failure
-    const ALERT = 1;         // Primary system failure
-    const CRITICAL = 2;      // Secondary system failure
-    const ERROR = 3;         // Non-urgent failure
-    const WARNING = 4;       // Will become an error if not corrected
-    const NOTICE = 5;        // Unusual; unclear if it will become an error
-    const INFORMATIONAL = 6; // Normal messages
-    const DEBUG = 7;         // Details for debugging
+    const EMERGENCY = 0;
+    const ALERT = 1;
+    const CRITICAL = 2;
+    const ERROR = 3;
+    const WARNING = 4;
+    const NOTICE = 5;
+    const INFORMATIONAL = 6;
+    const DEBUG = 7;
 
+    /**
+     * Value for data indicating no data. Do not use NULL, which is a valid
+     * value.
+     */
     const NO_DATA = "SLogger::NO_DATA";
 
-    // Names of all the severities in order. Used to convert
-    // severities between strings and ordinal values. Also
-    // used to match user provided strings against severities.
-    private static $_severities = array(
+    /**
+     * Names of all the severities in order. Used to convert severities
+     * between strings and ordinal values. Also used to match user provided
+     * strings against severities.
+     */
+    public  static $_severities = array(
         "emergency",
         "alert",
         "critical",
@@ -39,9 +49,13 @@ class SLogger
     );
 
     /**
-     * Helper to convert data to a string.
+     * Helper to convert data to a string. Note, null is a valid value.
+     * Use SLogger::NO_DATA for "no value".
+     *
+     * @param mixed $data.
+     * @return string representation of $data.
      */
-    private static function _toString($data) {
+    public static function dataToString($data) {
         $s = "";
         if ($data !== self::NO_DATA) {
             ob_start();
@@ -52,9 +66,17 @@ class SLogger
     }
 
     /**
-     * Utility for formatting dates with microseconds.
+     * Formats the current time, or $utimestamp, according to $format.
+     *
+     * @param string $format Same as that accepted by date(), plus 'u' represents microseconds.
+     * @param float $utimestamp Time as returned by microtime(). Defaults to the current time.
+     * @return string Date/time formatted as a string according to $format.
+     *
+     * @author daysnine at gmail dot com
+     * @source http://php.net/manual/en/datetime.format.php
+     * @since 2014-02-10
      */
-    private static function _udate($format = 'u', $utimestamp = null) {
+    public static function udate($format = 'u', $utimestamp = null) {
         if (is_null($utimestamp))
             $utimestamp = microtime(true);
         $timestamp = floor($utimestamp);
@@ -63,72 +85,130 @@ class SLogger
     }
 
     /**
-     * Add loggers.
-     *
-     * SLogger::add(array(
-     *      'default' => array(
-     *          '/path/to/log/directory',
-     *          'severityThreshold'=>'info',
-     *          'smartSeverityThreshold'=>'notice',
-     *          'maxFileSize'=>100000000, // 100MB
-     *          'maxDays'=>7, // delete logs after 7 days
-     *          'dateFormat'=>'H-i-s.u', // u is microseconds
-     *          'defaultPermission'=>0777, // permission used to create files
-     *      )
-     * ));
+     * Create, configure, and name SLoggerObjects.
      *
      * @param array $confs Associative array whose keys are the names of loggers,
-     * and whose values are associative arrays whose keys are public attributes
-     * of SLogger and whose values are the initial values for those attributes.
+     * and whose values are associative arrays. These inner arrays' keys are
+     * public attributes of SLogger, and their values are the initial values
+     * for those attributes.
      */
     public static function add($confs) {
         foreach ($confs as $name => $conf) {
             $path = $conf[0];
             unset($conf[0]);
-            self::$_instances[$name] = new SLogger($path, $conf);
+            self::$_sloggerObjects[$name] = new SLoggerObject($path, $conf);
         }
     }
 
     /**
-     * Returns a logger named $name.
-     * @param string $name Name of logger to return. Default is 'default'.
-     * @return SLogger or FALSE if $name is not found.
+     * Returns the SLoggerObject named by $name.
+     *
+     * @param string $name Default is 'default'.
+     * @return SLoggerObject or FALSE if $name is not found.
      */
     public static function get($name = 'default') {
-        if (array_key_exists($name, self::$_instances)) {
-            return self::$_instances[$name];
+        if (array_key_exists($name, self::$_sloggerObjects)) {
+            return self::$_sloggerObjects[$name];
         }
         return FALSE;
     }
 
-    /** Utility for comparing messages by timestamp for sorting. */
-    private static function _compareMessages($a, $b) {
-        return $a[0] - $b[0];
+    public static function toSeverityOrdinal($severityString) {
+        if (!is_string($severityString)) {
+            return $severityString;
+        }
+        $severityString = strtolower($severityString);
+        $len = strlen($severityString);
+        $n = count(self::$_severities);
+        for($i = 0; $i < $n; $i++) {
+            if ($severityString === substr(self::$_severities[$i], 0, $len)) {
+                return $i;
+            }
+        }
+        throw new Exception("Unknown severity: $severityString");
     }
 
-    /** Report messages at or above this severity */
-    public $severityThreshold = self::INFORMATIONAL;
-    /** Report all messages if any message is at or above this severity */
-    public $smartSeverityThreshold = self::NOTICE;
-    /** Rotate log file if it becomes larger than this size in bytes */
+    public static function toSeverityString($severityOrdinal) {
+        return self::$_severities[$severityOrdinal];
+    }
+
+}
+
+/**
+ * An SLoggerObject is responsible for managing log files
+ * in a given directory and logging messages to those files.
+ */
+class SLoggerObject {
+
+    /**
+     * Report messages at or above this severity.
+     */
+    public $severityThreshold = SLogger::INFORMATIONAL;
+
+    /**
+     * Report all messages if any message is at or above this severity.
+     */
+    public $smartSeverityThreshold = SLogger::NOTICE;
+
+    /**
+     * Rotate log file if it becomes larger than this size in bytes.
+     */
     public $maxFileSize = 100000000;
-    /** Format of date/time */
+
+    /**
+     * Format of date/time.
+     */
     public $dateFormat = 'Y-m-d H:i:s.u';
-    /** Files created using these default permissions */
+
+    /**
+     * Files created using these default permissions.
+     */
     public $defaultPermission = 0777;
-    /** Delete logs after $deletAfterDays old. */
+
+    /**
+     * Delete logs after $deletAfterDays old.
+     */
     public $maxDays = 7;
 
+    /**
+     * Directory to log to.
+     */
     private $_logDirectory = NULL;
+
+    /**
+     * Path to log file.
+     */
     private $_logFilePath = null;
+
+    /**
+     * Handle of log file.
+     */
     private $_fileHandle = null;
+
+    /**
+     * TRUE indicates to log everything.
+     */
     private $_verbose = FALSE;
+
+    /**
+     * Queues to hold log messages, indexed by severity.
+     */
     private $_queues = array();
+
+    /**
+     * Path to lock file.
+     */
     private $_lockFilePath = null;
-    private $_lockHandle = null;
+
+    /**
+     * ExclusiveLock object that manages the lock file.
+     */
     private $_mutex = null;
 
     /**
+     * Ensures directory and log file exists creating them as needed.
+     * Deletes old log files. Rotates log files based on size and date.
+     *
      * @param string $logDirectory Where logs will be written.
      * @param array $args Configuration array to initialize public attributes.
      */
@@ -143,8 +223,8 @@ class SLogger
         }
 
         // Convert severity strings to ordinals.
-        $this->severityThreshold      = $this->_toSeverityOrdinal($this->severityThreshold);
-        $this->smartSeverityThreshold = $this->_toSeverityOrdinal($this->smartSeverityThreshold);
+        $this->severityThreshold      = SLogger::toSeverityOrdinal($this->severityThreshold);
+        $this->smartSeverityThreshold = SLogger::toSeverityOrdinal($this->smartSeverityThreshold);
 
         $this->_buildQueues();
 
@@ -153,11 +233,11 @@ class SLogger
             throw new Exception("Log directory is required");
         }
 
-        // Sanatize _logDirectory.
+        // Sanatize _logDirectory. Remove trailing slash.
         $this->_logDirectory = rtrim($this->_logDirectory, '\\/');
 
         // Don't rotate, delete, create, or open log files if OFF.
-        if ($this->severityThreshold !== self::OFF) {
+        if ($this->severityThreshold !== SLogger::OFF) {
 
             // Create log directory as needed
             if (!file_exists($this->_logDirectory)) {
@@ -173,22 +253,6 @@ class SLogger
             if (file_exists($this->_lockFilePath) && !is_writable($this->_lockFilePath)) {
                 throw new Exception("Please check permissions on lock file: {$this->_lockFilePath}");
             }
-
-
-            /*
-            // Open lock file in preparation for locking
-            $this->_lockHandle = fopen($this->_lockFilePath, 'w');
-            if (!is_resource($this->_lockHandle)) {
-                throw new Exception("Could not open lock file: {$this->_lockFilePath}");
-            }
-             */
-
-            /*
-            // Lock file.
-            if (self::_lock($this->_lockHandle, LOCK_EX) === FALSE) {
-                throw new Exception("Could not aquire lock on lock file: {$this->_lockFilePath}");
-            }
-             */
 
             $this->_mutex = new ExclusiveLock($this->_logDirectory . DIRECTORY_SEPARATOR);
             if (!$this->_mutex->lock()) {
@@ -231,58 +295,49 @@ class SLogger
                 $this->_deleteOldLogs();
 
             } catch (Exception $e) {
-                // Rethrow after unluck. See below.
+                // Rethrow after unlock. See below.
             }
-            /*
-            // Unlock file.
-            self::_unlock($this->_lockHandle);
-             */
             $this->_mutex->unlock();
             if ($e !== null) {
                 throw $e;
             }
         }
-
     }
 
+
+    /**
+     * Writes messages to file.
+     */
     public function __destruct() {
         if (is_resource($this->_fileHandle)) {
             $this->_write();
             fclose($this->_fileHandle);
         }
-        /*
-        if (is_resource($this->_lockHandle)) {
-            fclose($this->_lockHandle);
-        }
-         */
     }
 
     /**
-     * Information extracted from attributes with a higher priority
-     * override equivelent information extracted from attributes with
-     * lower priority.
      *
      * @param mixed $message May be a string or an exception.
      * @param int $severity
      * @param mixed $data Data to be dumped to log.
      *      Use SLogger::NO_DATA for "no value" instead of NULL.
-     * @param array $args with following attributes (in order of priority)
+     * @param array $args with following attributes.
      *      file        optional    ignored if $message is an exception
      *      line        optional    ignored if $message is an exception
      */
-    public function log($message, $severity, $data = self::NO_DATA, $args = array()) {
+    public function log($message, $severity, $data = SLogger::NO_DATA, $args = array()) {
         if ($args === NULL) {
             $args = array();
         }
-        if ($this->severityThreshold === self::OFF) {
+        if ($this->severityThreshold === SLogger::OFF) {
             return;
         }
-        $time = self::_udate($this->dateFormat);
+        $time = SLogger::udate($this->dateFormat);
 
         if ($severity <= $this->smartSeverityThreshold) {
             $this->_verbose = TRUE;
         }
-        $severityStr = strtoupper($this->_toSeverityString($this->_toSeverityOrdinal($severity)));
+        $severityStr = strtoupper(SLogger::toSeverityString(SLogger::toSeverityOrdinal($severity)));
 
         $file = null;
         $line = null;
@@ -354,7 +409,7 @@ class SLogger
         if (array_key_exists('data', $args)) {
             $data = $args['data'];
         }
-        $data = ($data === SLogger::NO_DATA) ? null : SLogger::_toString($data);
+        $data = ($data === SLogger::NO_DATA) ? null : SLogger::dataToString($data);
 
         // Enqueue the message.
         $this->_queues[$severity][] = array(
@@ -370,29 +425,29 @@ class SLogger
         );
     }
 
-    public function emergency($message, $data = self::NO_DATA, $args = array()) {
-        $this->log($message, self::EMERGENCY, $data, $args);
+    public function emergency($message, $data = SLogger::NO_DATA, $args = array()) {
+        $this->log($message, SLogger::EMERGENCY, $data, $args);
     }
-    public function alert($message, $data = self::NO_DATA, $args = array()) {
-        $this->log($message, self::ALERT, $data, $args);
+    public function alert($message, $data = SLogger::NO_DATA, $args = array()) {
+        $this->log($message, SLogger::ALERT, $data, $args);
     }
-    public function critical($message, $data = self::NO_DATA, $args = array()) {
-        $this->log($message, self::CRITICAL, $data, $args);
+    public function critical($message, $data = SLogger::NO_DATA, $args = array()) {
+        $this->log($message, SLogger::CRITICAL, $data, $args);
     }
-    public function error($message, $data = self::NO_DATA, $args = array()) {
-        $this->log($message, self::ERROR, $data, $args);
+    public function error($message, $data = SLogger::NO_DATA, $args = array()) {
+        $this->log($message, SLogger::ERROR, $data, $args);
     }
-    public function warning($message, $data = self::NO_DATA, $args = array()) {
-        $this->log($message, self::WARNING, $data, $args);
+    public function warning($message, $data = SLogger::NO_DATA, $args = array()) {
+        $this->log($message, SLogger::WARNING, $data, $args);
     }
-    public function notice($message, $data = self::NO_DATA, $args = array()) {
-        $this->log($message, self::NOTICE, $data, $args);
+    public function notice($message, $data = SLogger::NO_DATA, $args = array()) {
+        $this->log($message, SLogger::NOTICE, $data, $args);
     }
-    public function info($message, $data = self::NO_DATA, $args = array()) {
-        $this->log($message, self::INFORMATIONAL, $data, $args);
+    public function info($message, $data = SLogger::NO_DATA, $args = array()) {
+        $this->log($message, SLogger::INFORMATIONAL, $data, $args);
     }
-    public function debug($message, $data = self::NO_DATA, $args = array()) {
-        $this->log($message, self::DEBUG, $data, $args);
+    public function debug($message, $data = SLogger::NO_DATA, $args = array()) {
+        $this->log($message, SLogger::DEBUG, $data, $args);
     }
 
     /**
@@ -404,30 +459,11 @@ class SLogger
     }
 
 
-    private function _toSeverityOrdinal($severityString) {
-        if (!is_string($severityString)) {
-            return $severityString;
-        }
-        $severityString = strtolower($severityString);
-        $len = strlen($severityString);
-        $n = count(self::$_severities);
-        for($i = 0; $i < $n; $i++) {
-            if ($severityString === substr(self::$_severities[$i], 0, $len)) {
-                return $i;
-            }
-        }
-        throw new Exception("Unknown severity: $severityString");
-    }
-
-    private function _toSeverityString($severityOrdinal) {
-        return self::$_severities[$severityOrdinal];
-    }
-
     /** Smartly write messages to log file. */
     private function _write() {
 
         // Do nothing if OFF.
-        if ($this->severityThreshold === self::OFF) {
+        if ($this->severityThreshold === SLogger::OFF) {
             return;
         }
 
@@ -443,12 +479,8 @@ class SLogger
 
         // Merge and sort messages.
         $messages = call_user_func_array("array_merge", $queues);
-        usort($messages, array("SLogger", "_compareMessages"));
+        usort($messages, array("SLoggerObject", "_compareMessages"));
 
-        /*
-        // Write messages to file.
-        self::_lock($this->_lockHandle, $this->_lockFilePath);
-         */
         if (!$this->_mutex->lock()) {
             throw new Exception("Could not lock {$this->_lockFilePath}");
         }
@@ -461,9 +493,6 @@ class SLogger
             $e = $f;
             // Rethrow $e after unlock. See below.
         }
-        /*
-        $this->_unlock($this->_lockHandle);
-         */
         $this->_mutex->unlock();
         $this->_buildQueues();
         if ($e !== null) {
@@ -492,23 +521,24 @@ class SLogger
     }
 
     private function _buildQueues() {
-        // Build queues.
-        foreach(self::$_severities as $s) {
+        foreach(SLogger::$_severities as $s) {
             $this->_queues[] = array();
         }
     }
 
-    private static function _lock($handle, $file) {
-        if (flock($handle, LOCK_EX) === FALSE) {
-            throw new Exception("Could not lock log file: $file");
-        }
-    }
-    private static function _unlock($handle) {
-        flock($handle, LOCK_UN);
+    /**
+     * Compares two messages stored in $_queues by ID for sorting.
+     */
+    private static function _compareMessages($a, $b) {
+        return $a[0] - $b[0];
     }
 
-    #################################################################
-    # Facilities for logging PHP errors and exceptions.
+}
+
+/**
+ * Facilities for logging PHP errors and exceptions.
+ */
+class SLoggerErrorHandler {
 
     public static $errorExceptionLogger = 'default';
 
@@ -523,7 +553,7 @@ class SLogger
         switch($num) {
         case E_CORE_ERROR:
             SLogger::get(self::$errorExceptionLogger)->
-                emergency($str, self::NO_DATA, array('file'=>$file,'line'=>$line));
+                emergency($str, SLogger::NO_DATA, array('file'=>$file,'line'=>$line));
             break;
         case E_ERROR:
         case E_COMPILE_ERROR:
@@ -531,7 +561,7 @@ class SLogger
         case E_PARSE:
         case E_RECOVERABLE_ERROR:
             SLogger::get(self::$errorExceptionLogger)->
-                alert($str, self::NO_DATA, array('file'=>$file,'line'=>$line));
+                alert($str, SLogger::NO_DATA, array('file'=>$file,'line'=>$line));
             break;
         case E_WARNING:
         case E_CORE_WARNING:
@@ -540,17 +570,17 @@ class SLogger
         case E_DEPRECATED:
         case E_USER_DEPRECATED:
             SLogger::get(self::$errorExceptionLogger)->
-                warning($str, self::NO_DATA, array('file'=>$file,'line'=>$line));
+                warning($str, SLogger::NO_DATA, array('file'=>$file,'line'=>$line));
             break;
         case E_NOTICE:
         case E_USER_NOTICE:
         case E_STRICT:
             SLogger::get(self::$errorExceptionLogger)->
-                notice($str, self::NO_DATA, array('file'=>$file,'line'=>$line));
+                notice($str, SLogger::NO_DATA, array('file'=>$file,'line'=>$line));
             break;
         default:
             SLogger::get(self::$errorExceptionLogger)->
-                warning('Unknown error type ('.$num.')', self::NO_DATA,
+                warning('Unknown error type ('.$num.')', SLogger::NO_DATA,
                     array('file'=>__FILE__,'line'=>__LINE__));
             break;
         }
@@ -565,7 +595,7 @@ class SLogger
             if (ini_get('display_errors') == 1) {
                 echo "$e\n";
             }
-            self::get(self::$errorExceptionLogger)->alert($e);
+            SLogger::get(self::$errorExceptionLogger)->alert($e);
         } catch (Exception $e) {
             echo "$e";
         }
@@ -588,17 +618,16 @@ class SLogger
      * @param int $errorTypes Error types to report. Default is -1 (all).
      * @param bool $displayErrors True displays errors to browser. Default is 0 (false).
      */
-    public static function installErrorHandlers($logger = 'default', $errorTypes = -1, $displayErrors = 0) {
+    public static function install($logger = 'default', $errorTypes = -1, $displayErrors = 0) {
         self::$errorExceptionLogger = $logger;
-        register_shutdown_function(array('SLogger', "_logFatal"));
-        set_error_handler         (array('SLogger', '_logError'));
-        set_exception_handler     (array('SLogger', '_logException'));
+        register_shutdown_function(array('SLoggerErrorHandler', "_logFatal"));
+        set_error_handler         (array('SLoggerErrorHandler', '_logError'));
+        set_exception_handler     (array('SLoggerErrorHandler', '_logException'));
         ini_set                   ("display_errors", "$displayErrors");
         error_reporting           ($errorTypes);
     }
 
 }
-
 
 /*
  * @author harray http://stackoverflow.com/users/365999/harry
@@ -639,7 +668,7 @@ class ExclusiveLock
     protected $own   = FALSE; //have we locked resource
     protected $filename = null;  //name of lockfile.
 
-    function __construct( $key ) 
+    function __construct( $key )
     {
         $this->key = $key;
         $this->filename = "$key.lockfile";
@@ -648,16 +677,16 @@ class ExclusiveLock
     }
 
 
-    function __destruct() 
+    function __destruct()
     {
         if( $this->own == TRUE )
             $this->unlock( );
     }
 
 
-    function lock( ) 
+    function lock( )
     {
-        if( !flock($this->file, LOCK_EX)) 
+        if( !flock($this->file, LOCK_EX))
         { //failed
             $key = $this->key;
             error_log("ExclusiveLock::acquire_lock FAILED to acquire lock [$key]");
@@ -672,11 +701,10 @@ class ExclusiveLock
         return $this->own;
     }
 
-
-    function unlock( ) 
+    function unlock( )
     {
         $key = $this->key;
-        if( $this->own == TRUE ) 
+        if( $this->own == TRUE )
         {
             if( !flock($this->file, LOCK_UN) )
             { //failed
@@ -700,5 +728,4 @@ class ExclusiveLock
         return $this->filename;
     }
 };
-
 
