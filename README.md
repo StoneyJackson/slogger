@@ -13,18 +13,25 @@ A PHP Logger
 * Locking
 * Fail-fast via exceptions
 
-## Getting started
+## Quick start
 
-1. Clone project
-1. Try example/example.php
+    require 'SLogger.php';
+    SLogger::add(array(
+        'default' => array( 'path/to/log/directory' ),
+    ));
+    SLoggerErrorHandler::install(); // log all errors and uncaught exceptions; supress display of errors to browser.
+    SLogger::get()->debug("This will be logged only if a more sever event is logged.");
+    SLogger::get()->error("This will trigger smart logging: all events in this session will be logged.");
+    throw new Exception("This is logged if not caught and if SLoggerErrorHandler::install() was called.");
 
 ## Documentation
 
-See example/example.php and tests/SLoggerTest.php
+See example/example.php, SLogger.php, and tests/SLoggerTest.php
 
 ## Credits
 
-This project is inspired by Kenny Katzgrau's
-[KLogger](https://github.com/katzgrau/KLogger) and many of the pull requests
-made to that project.
+The giants on which I stand ...
 
+* Kenny Katzgrau's [KLogger](https://github.com/katzgrau/KLogger)
+* Contributions made to KLogger via GitHub pull requests (also licensed under MIT)
+* Code taken from answers on StackOverflow and documentation comments on php.net (both licensed under CC 3.0 with attribution; attributions given in code).

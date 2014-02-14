@@ -1,4 +1,34 @@
 <?php
+* [Context and location information](https://github.com/katzgrau/KLogger/pull/6)
+* Locking
+* Fail-fast via exceptions
+
+/*
+@copyright Copyright (c) 2014, Stoney Jackson
+@license http://opensource.org/licenses/MIT
+
+The MIT License (MIT)
+
+Copyright (c) 2014 Stoney Jackson
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software is furnished to do so,
+subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+*/
+
 /**
  * Logging system. Contains common constants and static functons.
  *
@@ -72,9 +102,10 @@ class SLogger
      * @param float $utimestamp Time as returned by microtime(). Defaults to the current time.
      * @return string Date/time formatted as a string according to $format.
      *
-     * @author daysnine at gmail dot com
-     * @source http://php.net/manual/en/datetime.format.php
      * @since 2014-02-10
+     * @author daysnine at gmail dot com
+     * @link http://php.net/manual/en/datetime.format.php
+     * @license http://creativecommons.org/licenses/by/3.0/legalcode
      */
     public static function udate($format = 'u', $utimestamp = null) {
         if (is_null($utimestamp))
@@ -211,6 +242,9 @@ class SLoggerObject {
      *
      * @param string $logDirectory Where logs will be written.
      * @param array $args Configuration array to initialize public attributes.
+     *
+     * Rotation by filesize provided by {@link 
+     * https://github.com/katzgrau/KLogger/pull/14}
      */
     public function __construct($logDirectory, $args = array()) {
 
@@ -324,8 +358,12 @@ class SLoggerObject {
      * @param array $args with following attributes.
      *      file        optional    ignored if $message is an exception
      *      line        optional    ignored if $message is an exception
+     *
+     * Context and location information from {@link 
+     * https://github.com/katzgrau/KLogger/pull/6}
      */
-    public function log($message, $severity, $data = SLogger::NO_DATA, $args = array()) {
+    public function log($message, $severity, $data = SLogger::NO_DATA, $args = 
+        array()) {
         if ($args === NULL) {
             $args = array();
         }
@@ -629,11 +667,13 @@ class SLoggerErrorHandler {
 
 }
 
-/*
- * @author harray http://stackoverflow.com/users/365999/harry
- * @source http://stackoverflow.com/questions/325806/best-way-to-obtain-a-lock-in-php
- * @since 2014-02-10
- *
+/**
+@author harray http://stackoverflow.com/users/365999/harry
+@source http://stackoverflow.com/questions/325806/best-way-to-obtain-a-lock-in-php
+@since 2014-02-10
+@license http://creativecommons.org/licenses/by-sa/3.0/
+@license http://blog.stackoverflow.com/2009/06/attribution-required/
+
 CLASS ExclusiveLock
 Description
 ==================================================================
