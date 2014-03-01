@@ -1,8 +1,4 @@
 <?php
-* [Context and location information](https://github.com/katzgrau/KLogger/pull/6)
-* Locking
-* Fail-fast via exceptions
-
 /*
 @copyright Copyright (c) 2014, Stoney Jackson
 @license http://opensource.org/licenses/MIT
